@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"regexp"
 
 	"influencelab-backend/internal/config"
 	"influencelab-backend/internal/model"
@@ -16,16 +17,16 @@ import (
 func AnalyzeWithGemini(
 	caption string,
 	image *multipart.FileHeader,
-) (string, error) {
+) (*model.CoachAnalysis, error) {
 
 	apiKey := config.AppConfig.GeminiAPIKey
 	if apiKey == "" {
-		return "", fmt.Errorf("GEMINI_API_KEY not set")
+		return nil, fmt.Errorf("GEMINI_API_KEY not set")
 	}
 
 	file, err := image.Open()
 	if err != nil {
-		return "", fmt.Errorf("failed to open image: %w", err)
+		return nil, fmt.Errorf("failed to open image: %w", err)
 	}
 	defer file.Close()
 
@@ -70,7 +71,7 @@ Evaluate the content across these dimensions:
 - Target audience clarity
 
 ## Required Output Format
-Respond in this exact JSON structure:
+Respond ONLY with valid JSON (no markdown, no code blocks, no extra text):
 {
   "overall_score": <number 1-10>,
   "visual_score": <number 1-10>,
@@ -104,7 +105,7 @@ Be direct, specific, and constructive. Focus on actionable improvements, not gen
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
 	// Use gemini-2.0-flash (current model that supports vision)
@@ -112,7 +113,7 @@ Be direct, specific, and constructive. Focus on actionable improvements, not gen
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -120,33 +121,63 @@ Be direct, specific, and constructive. Focus on actionable improvements, not gen
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %w", err)
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	// Read the full response body for debugging
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	// Check for HTTP errors
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Gemini API error (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("Gemini API error (status %d): %s", resp.StatusCode, string(respBody))
 	}
 
 	var result model.GeminiResponse
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if len(result.Candidates) == 0 {
-		return "", fmt.Errorf("no response from Gemini. Raw response: %s", string(respBody))
+		return nil, fmt.Errorf("no response from Gemini. Raw response: %s", string(respBody))
 	}
 
 	if len(result.Candidates[0].Content.Parts) == 0 {
-		return "", fmt.Errorf("empty response parts from Gemini")
+		return nil, fmt.Errorf("empty response parts from Gemini")
 	}
 
-	return result.Candidates[0].Content.Parts[0].Text, nil
+	// Extract the text response
+	textResponse := result.Candidates[0].Content.Parts[0].Text
+
+	// Parse the JSON from the response (handle markdown code blocks if present)
+	jsonStr := extractJSON(textResponse)
+
+	var analysis model.CoachAnalysis
+	if err := json.Unmarshal([]byte(jsonStr), &analysis); err != nil {
+		return nil, fmt.Errorf("failed to parse coach analysis: %w. Raw: %s", err, textResponse)
+	}
+
+	return &analysis, nil
+}
+
+// extractJSON extracts JSON from a string, handling markdown code blocks
+func extractJSON(s string) string {
+	// Try to find JSON in markdown code block
+	re := regexp.MustCompile("(?s)```(?:json)?\\s*({.*?})\\s*```")
+	matches := re.FindStringSubmatch(s)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	// Try to find raw JSON object
+	re = regexp.MustCompile(`(?s)\{.*\}`)
+	match := re.FindString(s)
+	if match != "" {
+		return match
+	}
+
+	return s
 }
