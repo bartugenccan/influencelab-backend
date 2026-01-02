@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"influencelab-backend/internal/ai"
 	"influencelab-backend/internal/model"
 )
 
@@ -20,14 +21,19 @@ func AnalyzeContent(input model.AnalyzeRequest) (model.AnalyzeResponse, error) {
 
 	// coach mode
 	if input.AnalysisType == model.AnalysisTypeCoach {
+
+		feedback, err := ai.AnalyzeWithGemini(
+			input.Caption,
+			input.Media,
+		)
+
+		if err != nil {
+			return model.AnalyzeResponse{}, err
+		}
+
 		return model.AnalyzeResponse{
-			Mode: model.ModeAICoach,
-			CoachFeedback: []string{
-				"The visual does not immediately communicate value",
-				"The caption hook is weak in the first line",
-				"Consider adding emotional context",
-			},
-			MediaSummary: mediaInfo,
+			Mode:          model.ModeAICoach,
+			CoachFeedback: []string{feedback},
 		}, nil
 	}
 
