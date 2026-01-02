@@ -2,8 +2,8 @@ package service
 
 import (
 	"errors"
-	"fmt"
 
+	"influencelab-backend/internal/ai"
 	"influencelab-backend/internal/model"
 )
 
@@ -12,29 +12,29 @@ func AnalyzeContent(input model.AnalyzeRequest) (model.AnalyzeResponse, error) {
 		return model.AnalyzeResponse{}, errors.New("invalid analysis_type")
 	}
 
-	mediaInfo := fmt.Sprintf(
-		"Received media: %s (%d bytes)",
-		input.Media.Filename,
-		input.Media.Size,
-	)
-
 	// coach mode
 	if input.AnalysisType == model.AnalysisTypeCoach {
+		analysis, err := ai.AnalyzeWithGemini(
+			input.Caption,
+			input.Media,
+		)
+
+		if err != nil {
+			return model.AnalyzeResponse{
+				Mode:  model.ModeAICoach,
+				Error: err.Error(),
+			}, nil
+		}
+
 		return model.AnalyzeResponse{
-			Mode: model.ModeAICoach,
-			CoachFeedback: []string{
-				"The visual does not immediately communicate value",
-				"The caption hook is weak in the first line",
-				"Consider adding emotional context",
-			},
-			MediaSummary: mediaInfo,
+			Mode:          model.ModeAICoach,
+			CoachAnalysis: analysis,
 		}, nil
 	}
 
-	// persona mode
+	// persona mode (TODO: implement persona simulation)
 	return model.AnalyzeResponse{
 		Mode:            model.ModePersonaSimulation,
 		PersonaReaction: "This content feels neutral and not relatable for this audience",
-		MediaSummary:    mediaInfo,
 	}, nil
 }

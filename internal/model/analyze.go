@@ -21,9 +21,21 @@ type AnalyzeRequest struct {
 	Media        *multipart.FileHeader `form:"media" binding:"required"`
 }
 
+// CoachAnalysis represents the structured feedback from AI coach
+type CoachAnalysis struct {
+	OverallScore   int      `json:"overall_score"`
+	VisualScore    int      `json:"visual_score"`
+	CaptionScore   int      `json:"caption_score"`
+	AlignmentScore int      `json:"alignment_score"`
+	Strengths      []string `json:"strengths"`
+	Improvements   []string `json:"improvements"`
+	RevisedCaption string   `json:"revised_caption"`
+	QuickWins      []string `json:"quick_wins"`
+}
+
 type AnalyzeResponse struct {
-	Mode            string   `json:"mode"`
-	CoachFeedback   []string `json:"coach_feedback,omitempty"`
-	PersonaReaction string   `json:"persona_reaction,omitempty"`
-	MediaSummary    string   `json:"media_summary"`
+	Mode            string         `json:"mode"`
+	CoachAnalysis   *CoachAnalysis `json:"coach_analysis,omitempty"`
+	PersonaReaction string         `json:"persona_reaction,omitempty"`
+	Error           string         `json:"error,omitempty"`
 }
