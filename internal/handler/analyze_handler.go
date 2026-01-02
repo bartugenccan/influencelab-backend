@@ -18,28 +18,22 @@ func Analyze(c *gin.Context) {
 		return
 	}
 
-	mediaFile, err := c.FormFile("media")
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "media file is required",
-		})
-
-		return
+	if req.Media == nil {
+		mediaFile, err := c.FormFile("media")
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "media file is required",
+			})
+			return
+		}
+		req.Media = mediaFile
 	}
 
-	input := service.AnalyzeInput{
-		Caption:      req.Caption,
-		AnalysisType: req.AnalysisType,
-		Persona:      req.Persona,
-		MediaFile:    mediaFile,
-	}
-
-	result, err := service.AnalyzeContent(input)
+	result, err := service.AnalyzeContent(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": err.Error(),
 		})
-
 		return
 	}
 

@@ -3,27 +3,19 @@ package service
 import (
 	"errors"
 	"fmt"
-	"mime/multipart"
 
 	"influencelab-backend/internal/model"
 )
 
-type AnalyzeInput struct {
-	Caption      string
-	AnalysisType string
-	Persona      string
-	MediaFile    *multipart.FileHeader
-}
-
-func AnalyzeContent(input AnalyzeInput) (model.AnalyzeResponse, error) {
+func AnalyzeContent(input model.AnalyzeRequest) (model.AnalyzeResponse, error) {
 	if input.AnalysisType != model.AnalysisTypeCoach && input.AnalysisType != model.AnalysisTypePersona {
 		return model.AnalyzeResponse{}, errors.New("invalid analysis_type")
 	}
 
 	mediaInfo := fmt.Sprintf(
 		"Received media: %s (%d bytes)",
-		input.MediaFile.Filename,
-		input.MediaFile.Size,
+		input.Media.Filename,
+		input.Media.Size,
 	)
 
 	// coach mode
